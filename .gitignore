@@ -1,0 +1,11 @@
+.aws-sam/
+reports/
+scripts/input.json
+__pycache__/
+*.pyc
+.DS_Store
+.vscode/
+
+*.csv
+*accessKeys*
+.env

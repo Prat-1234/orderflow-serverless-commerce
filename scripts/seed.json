@@ -1,0 +1,6 @@
+{
+  "orderflow-inventory": [
+    { "PutRequest": { "Item": { "sku": {"S": "BOOK-1"}, "qtyOnHand": {"N": "10"}, "unitPrice": {"N": "500"} } } },
+    { "PutRequest": { "Item": { "sku": {"S": "PEN-1"}, "qtyOnHand": {"N": "3"}, "unitPrice": {"N": "20"} } } }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "Comment": "OrderFlow checkout saga",
+  "StartAt": "ReserveInventory",
+  "States": {
+    "ReserveInventory": {
+      "Type": "Task",
+      "Resource": "${ReserveArn}",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.TooManyRequestsException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "MarkFailed" }
+      ],
+      "Next": "ChargePayment"
+    },
+    "ChargePayment": {
+      "Type": "Task",
+      "Resource": "${ChargeArn}",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.TooManyRequestsException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "MarkFailed" }
+      ],
+      "Next": "ConfirmOrder"
+    },
+    "ConfirmOrder": {
+      "Type": "Task",
+      "Resource": "${ConfirmArn}",
+      "End": true
+    },
+    "MarkFailed": {
+      "Type": "Task",
+      "Resource": "${FailArn}",
+      "Next": "OrderFailed"
+    },
+    "OrderFailed": {
+      "Type": "Fail",
+      "Error": "OrderFailed",
+      "Cause": "Checkout failed and stock was released"
+    }
+  }
+}

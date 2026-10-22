@@ -1,0 +1,180 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OrderFlow</title>
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--text:#1a1d21;--muted:#667085;--accent:#2563eb;--ok:#15803d;--bad:#b42318;--border:#e4e7ec}
+  @media (prefers-color-scheme:dark){:root{--bg:#0f1216;--card:#171b21;--text:#e8eaed;--muted:#98a2b3;--accent:#60a5fa;--ok:#4ade80;--bad:#f87171;--border:#2a313b}}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+  main{max-width:560px;margin:0 auto;padding:32px 16px}
+  h1{font-size:22px;margin:0 0 4px}
+  h2{font-size:16px;margin:0 0 4px}
+  p.sub{color:var(--muted);margin:0 0 24px;font-size:14px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+  label{display:block;font-size:13px;color:var(--muted);margin:12px 0 4px}
+  input,select{width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:15px}
+  button{margin-top:16px;padding:10px 16px;border:0;border-radius:8px;background:var(--accent);color:#fff;font-size:15px;cursor:pointer}
+  button.secondary{background:transparent;color:var(--accent);border:1px solid var(--border)}
+  .row{display:flex;gap:12px}
+  .row>div{flex:1}
+  .status{font-weight:600;font-size:18px;margin:0 0 8px}
+  .CONFIRMED{color:var(--ok)}
+  .FAILED,.EXPIRED{color:var(--bad)}
+  .PENDING{color:var(--muted)}
+  pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;overflow-x:auto;margin:0}
+  .hidden{display:none}
+  .err{color:var(--bad);font-size:14px;margin-top:12px}
+  .hint{color:var(--muted);font-size:12px;margin-top:8px}
+</style>
+</head>
+<body>
+<main>
+  <h1>OrderFlow</h1>
+  <p class="sub">Event-driven serverless commerce on AWS. Cognito, API Gateway, Lambda, Step Functions, DynamoDB, EventBridge, SNS and SQS.</p>
+
+  <section id="loginCard" class="card">
+    <h2>Sign in</h2>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="username">
+    <label for="pw">Password</label>
+    <input id="pw" type="password" autocomplete="current-password">
+    <button id="loginBtn">Sign in</button>
+    <div id="loginErr" class="err"></div>
+  </section>
+
+  <section id="appCard" class="hidden">
+    <div class="card">
+      <h2>Place an order</h2>
+      <label for="cust">Customer ID</label>
+      <input id="cust" value="cust-001">
+      <div class="row">
+        <div>
+          <label for="sku">Product</label>
+          <select id="sku">
+            <option value="BOOK-1">BOOK-1 (500 each)</option>
+            <option value="PEN-1">PEN-1 (20 each)</option>
+          </select>
+        </div>
+        <div>
+          <label for="qty">Quantity</label>
+          <input id="qty" type="number" min="1" value="1">
+        </div>
+      </div>
+      <button id="placeBtn">Place order</button>
+      <div class="hint">Try the customer ID <b>fail-payment</b> to see a declined payment roll back the stock.</div>
+      <div id="orderErr" class="err"></div>
+    </div>
+
+    <div id="resultCard" class="card hidden">
+      <h2>Order status</h2>
+      <p id="statusText" class="status"></p>
+      <pre id="orderJson"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Look up an order</h2>
+      <label for="lookupId">Order ID</label>
+      <input id="lookupId">
+      <button id="lookupBtn" class="secondary">Look up</button>
+      <div id="lookupErr" class="err"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const CFG = {
+  region: "us-east-1",
+  clientId: "5eb6apig9oom8q5evd87lh5v3o",
+  api: "https://e2zki5w0xf.execute-api.us-east-1.amazonaws.com/Prod"
+};
+let token = null;
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function login() {
+  $("loginErr").textContent = "";
+  try {
+    const res = await fetch("https://cognito-idp." + CFG.region + ".amazonaws.com/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-amz-json-1.1",
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.InitiateAuth"
+      },
+      body: JSON.stringify({
+        AuthFlow: "USER_PASSWORD_AUTH",
+        ClientId: CFG.clientId,
+        AuthParameters: { USERNAME: $("email").value.trim(), PASSWORD: $("pw").value }
+      })
+    });
+    const data = await res.json();
+    if (!data.AuthenticationResult) throw new Error(data.message || "Login failed");
+    token = data.AuthenticationResult.IdToken;
+    $("loginCard").classList.add("hidden");
+    $("appCard").classList.remove("hidden");
+  } catch (e) {
+    $("loginErr").textContent = e.message;
+  }
+}
+
+async function api(path, opts) {
+  const res = await fetch(CFG.api + path, Object.assign({}, opts, {
+    headers: { "Content-Type": "application/json", Authorization: token }
+  }));
+  const text = await res.text();
+  let body;
+  try { body = JSON.parse(text); } catch (e) { body = { message: text }; }
+  if (!res.ok) throw new Error(body.message || "Request failed (HTTP " + res.status + ")");
+  return body;
+}
+
+function show(order) {
+  $("resultCard").classList.remove("hidden");
+  const s = $("statusText");
+  s.textContent = order.status;
+  s.className = "status " + order.status;
+  $("orderJson").textContent = JSON.stringify(order, null, 2);
+}
+
+async function poll(id) {
+  for (let i = 0; i < 15; i++) {
+    await sleep(1500);
+    const o = await api("/orders/" + id);
+    show(o);
+    if (o.status !== "PENDING") return;
+  }
+}
+
+async function place() {
+  $("orderErr").textContent = "";
+  try {
+    const body = JSON.stringify({
+      customerId: $("cust").value.trim() || "anonymous",
+      items: [{ sku: $("sku").value, qty: Number($("qty").value) }]
+    });
+    const order = await api("/orders", { method: "POST", body: body });
+    show(order);
+    $("lookupId").value = order.orderId;
+    await poll(order.orderId);
+  } catch (e) {
+    $("orderErr").textContent = e.message + " (your session may have expired, reload and sign in again)";
+  }
+}
+
+async function lookup() {
+  $("lookupErr").textContent = "";
+  try {
+    show(await api("/orders/" + encodeURIComponent($("lookupId").value.trim())));
+  } catch (e) {
+    $("lookupErr").textContent = e.message;
+  }
+}
+
+$("loginBtn").addEventListener("click", login);
+$("placeBtn").addEventListener("click", place);
+$("lookupBtn").addEventListener("click", lookup);
+</script>
+</body>
+</html>
