@@ -128,6 +128,9 @@ Create a user with `aws cognito-idp sign-up` and `admin-confirm-sign-up`, and se
 
 ![Dashboard](docs/images/04-dashboard.png)
 
+**SQS queues created for the fan-out**
+
+![SQS queues](docs/images/06-queues.png)
 **Email alert sent by a CloudWatch alarm through SNS**
 
 ![Alert email](docs/images/05-alert-email.png)
@@ -141,6 +144,7 @@ CloudWatch alarms email an SNS topic when a message reaches the dead-letter queu
 - Aurora Serverless v2 is deployed with the Data API enabled, but the application does not read or write it yet. Planned use: customers and products.
 - CORS is open to all origins, which is acceptable for a demo but should be restricted in production.
 - Planned: AWS Backup for the orders table, Parameter Store for configuration, and a GitHub Actions deploy pipeline using OIDC.
+
 
 
 
