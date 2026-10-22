@@ -110,6 +110,27 @@ Create a user with `aws cognito-idp sign-up` and `admin-confirm-sign-up`, and se
 - Order more units than exist: it ends as `FAILED` with `OutOfStock`.
 - Run the jobs: `aws batch submit-job --job-name reconcile --job-queue orderflow-queue --job-definition orderflow-reconcile`
 
+## Screenshots
+
+**A confirmed order** (stock reserved, payment charged, order confirmed)
+
+![Order confirmed](docs/images/01-order-confirmed.png)
+
+**A failed order** (payment declined, stock released)
+
+![Order failed](docs/images/02-order-failed.png)
+
+**Step Functions execution for a failed order** (the rollback path)
+
+![Workflow graph](docs/images/03-workflow-graph.png)
+
+**CloudWatch dashboard**
+
+![Dashboard](docs/images/04-dashboard.png)
+
+**SQS queues after fan-out**
+
+![Queues](docs/images/05-queues.png)
 ## Monitoring
 
 CloudWatch alarms email an SNS topic when a message reaches the dead-letter queue, when 5 or more checkout workflows fail within 5 minutes, or when the orders, confirm or rollback Lambdas raise errors. The reserve and charge Lambdas are intentionally not alarmed because they raise errors on purpose for out-of-stock and declined payments. A CloudWatch dashboard shows workflow runs, queue depth and Lambda errors.
@@ -120,4 +141,5 @@ CloudWatch alarms email an SNS topic when a message reaches the dead-letter queu
 - Aurora Serverless v2 is deployed with the Data API enabled, but the application does not read or write it yet. Planned use: customers and products.
 - CORS is open to all origins, which is acceptable for a demo but should be restricted in production.
 - Planned: AWS Backup for the orders table, Parameter Store for configuration, and a GitHub Actions deploy pipeline using OIDC.
+
 
